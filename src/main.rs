@@ -5,6 +5,7 @@ use ggez::nalgebra as na;
 use ggez::{Context, ContextBuilder, GameResult};
 
 use na::Vector2;
+use na::base::Unit;
 use nphysics2d::force_generator::DefaultForceGeneratorSet;
 use nphysics2d::joint::DefaultJointConstraintSet;
 use nphysics2d::math::Velocity;
@@ -17,6 +18,7 @@ use nphysics2d::world::{DefaultGeometricalWorld, DefaultMechanicalWorld};
 use ncollide2d::shape::{Ball, Cuboid, ShapeHandle};
 
 use ggez::graphics::DrawMode;
+use nphysics2d::algebra::ForceType::VelocityChange;
 
 const WIDTH_LOCAL: f32 = 800.0;
 const HEIGHT_LOCAL: f32 = 600.0;
@@ -60,7 +62,9 @@ impl Physics {
     fn add_ball(&mut self, x: f32, y: f32, velocity: Vector2<f32>) {
         let rigid_body = RigidBodyDesc::new()
             .translation(Vector2::new(x, y))
-            .mass(0.1)
+            .mass(1.2)
+            .angular_inertia(0.1)
+            .angular_damping(5.0)
             .velocity(Velocity::linear(velocity.x, velocity.y))
             .build();
 
@@ -70,6 +74,7 @@ impl Physics {
 
         let collider = ColliderDesc::new(shape)
             .ccd_enabled(false)
+            .density(1.0)
             .build(BodyPartHandle(rb_handle, 0));
 
         let _collider_handle = self.colliders.insert(collider);
@@ -87,12 +92,58 @@ impl Physics {
 
         let collider = ColliderDesc::new(shape)
             .ccd_enabled(false)
+            .density(1.0)
             .build(BodyPartHandle(rb_handle, 0));
 
         let _collider_handle = self.colliders.insert(collider);
     }
 
     fn step(&mut self) {
+        for mut contact in self.geometrical_world.contact_events() {
+            use ncollide2d::pipeline::narrow_phase::ContactEvent;
+            match contact {
+                ContactEvent::Started(mut h1, mut h2) => {
+                    if let Some((
+                        col_handle1,
+                        collider1,
+                        col_handle2,
+                        collider2,
+                        algorithm,
+                        manifold,
+                    )) = self
+                        .geometrical_world
+                        .contact_pair(&self.colliders, h1, h2, false)
+                    {
+                        let deep = manifold.deepest_contact().unwrap();
+                        let normal: Unit<Vector2<f32>>= deep.contact.normal;
+
+                        {
+                            let body1 = self
+                                .bodies
+                                .get_mut(collider1.body())
+                                .unwrap()
+                                .downcast_mut::<RigidBody<f32>>().unwrap();
+
+                            let vel1 = body1.velocity().linear.clone();
+
+                            let new_v1 = vel1 - (2.0 * vel1.dot(&normal) * normal.into_inner());
+
+                            body1.set_velocity(Velocity::linear(new_v1.x, new_v1.y));
+                        }
+                        let body2 = self
+                            .bodies
+                            .get_mut(collider2.body())
+                            .unwrap()
+                            .downcast_mut::<RigidBody<f32>>().unwrap();
+                        let vel2 = body2.velocity().linear.clone();
+                        let new_v2 = vel2 - (2.0 * vel2.dot(&normal) * normal.into_inner());
+                        body2.set_velocity(Velocity::linear(new_v2.x, new_v2.y))
+                    }
+                }
+                ContactEvent::Stopped(_, _) => {}
+            }
+        }
+
         self.mechanical_world.step(
             &mut self.geometrical_world,
             &mut self.bodies,
@@ -105,7 +156,7 @@ impl Physics {
 
 impl MyGame {
     pub fn new(_ctx: &mut Context) -> MyGame {
-        let mechanical_world = DefaultMechanicalWorld::new(Vector2::new(0.0, 0.0));
+        let mechanical_world = DefaultMechanicalWorld::new(Vector2::new(0.0, -10.0));
         let geometrical_world = DefaultGeometricalWorld::new();
 
         let bodies = DefaultBodySet::new();
