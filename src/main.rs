@@ -117,7 +117,10 @@ impl Physics {
                     {
                         let deep = manifold.deepest_contact().unwrap();
                         let normal: Unit<Vector2<f32>> = deep.contact.normal;
-                        if collider1.shape_handle().is::<Cuboid<f32>>() || collider2.shape_handle().is::<Cuboid<f32>>() {
+                        // if either is a box, use normal, else requires some extra maths
+                        if collider1.shape_handle().is::<Cuboid<f32>>()
+                            || collider2.shape_handle().is::<Cuboid<f32>>()
+                        {
                             // totally sane, totally normal
                             {
                                 let body1 = self
@@ -169,7 +172,7 @@ impl Physics {
                             let mut collision = pos1 - pos2;
                             let distance = collision.magnitude();
 
-                            let collision = collision/distance;
+                            let collision = collision / distance;
 
                             let v1ci = v1.dot(&collision);
                             let v2ci = v2.dot(&collision);
@@ -182,18 +185,17 @@ impl Physics {
                             println!("{:?}, {:?}", v1, v2);
 
                             {
-                               let body1 = self
+                                let body1 = self
                                     .bodies
                                     .get_mut(collider1.body())
                                     .unwrap()
                                     .downcast_mut::<RigidBody<f32>>()
                                     .unwrap();
                                 body1.set_velocity(Velocity::linear(v1.x, v1.y));
-
                             }
 
                             {
-                               let body2 = self
+                                let body2 = self
                                     .bodies
                                     .get_mut(collider2.body())
                                     .unwrap()
