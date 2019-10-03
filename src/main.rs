@@ -183,7 +183,7 @@ impl Physics {
                             let v2ci = v2.dot(&collision);
 
                             let v1cf = (v1ci * (mass1 - mass2) + (2.0 * mass2 * v2ci))/(mass1 + mass2);
-                            let v2cf = (v2ci * (mass2 - mass1) + (2.0 * mass2 * v1ci))/(mass1 + mass2);
+                            let v2cf = (v2ci * (mass2 - mass1) + (2.0 * mass1 * v1ci))/(mass1 + mass2);
 
                             v1 += (v1cf - v1ci) * collision;
                             v2 += (v2cf - v2ci) * collision;
