@@ -18,6 +18,7 @@ use nphysics2d::world::{DefaultGeometricalWorld, DefaultMechanicalWorld};
 use ncollide2d::shape::{Ball, Cuboid, ShapeHandle};
 
 use ggez::graphics::DrawMode;
+use rand::Rng;
 
 const WIDTH_LOCAL: f32 = 800.0;
 const HEIGHT_LOCAL: f32 = 600.0;
@@ -44,6 +45,7 @@ struct MyGame {
     // hmm
     physics: Physics,
     prev_pt: Vector2<f32>,
+    rad: f32,
     mouse_down: bool,
 }
 
@@ -58,10 +60,11 @@ struct Physics {
 }
 
 impl Physics {
-    fn add_ball(&mut self, x: f32, y: f32, velocity: Vector2<f32>) {
+    fn add_ball(&mut self, x: f32, y: f32, velocity: Vector2<f32>, radius: f32) {
+
         let rigid_body = RigidBodyDesc::new()
             .translation(Vector2::new(x, y))
-            .mass(10.0)
+            .mass(std::f32::consts::PI * radius.powf(2.0))
             //.angular_inertia(0.1)
             //.angular_damping(5.0)
             .velocity(Velocity::linear(velocity.x, velocity.y))
@@ -69,11 +72,11 @@ impl Physics {
 
         let rb_handle = self.bodies.insert(rigid_body);
 
-        let shape = ShapeHandle::new(Ball::new(10.0));
+        let shape = ShapeHandle::new(Ball::new(radius));
 
         let collider = ColliderDesc::new(shape)
             .ccd_enabled(false)
-            .density(5.0)
+            //.density(5.0)
             .build(BodyPartHandle(rb_handle, 0));
 
         let _collider_handle = self.colliders.insert(collider);
@@ -91,7 +94,7 @@ impl Physics {
 
         let collider = ColliderDesc::new(shape)
             .ccd_enabled(false)
-            .density(1.0)
+            //.density(1.0)
             .build(BodyPartHandle(rb_handle, 0));
 
         let _collider_handle = self.colliders.insert(collider);
@@ -168,6 +171,8 @@ impl Physics {
                             let mut v2 = body2.velocity().linear.clone();
                             let pos1 = body1.position().translation.vector;
                             let pos2 = body2.position().translation.vector;
+                            let mass1: f32 = body1.augmented_mass().linear;
+                            let mass2: f32 = body2.augmented_mass().linear;
 
                             let mut collision = pos1 - pos2;
                             let distance = collision.magnitude();
@@ -177,11 +182,17 @@ impl Physics {
                             let v1ci = v1.dot(&collision);
                             let v2ci = v2.dot(&collision);
 
-                            let v1cf = v2ci;
-                            let v2cf = v1ci;
+                            //let v1cf = v2ci;
+                            //let v2cf = v1ci;
 
-                            v1 += (v1cf - v1ci) * collision;
-                            v2 += (v2cf - v2ci) * collision;
+
+                            let v1cf = v1 - (2.0*mass2)/(mass1 + mass2) * ((v1 - v2).dot(&(pos1 - pos2))/(pos1 - pos2).magnitude().powf(2.0)) *(pos1 - pos2);
+                            let v2cf = v2 - (2.0*mass1)/(mass1 + mass2) * ((v2 - v1).dot(&(pos2 - pos1))/(pos2 - pos1).magnitude().powf(2.0)) *(pos2 - pos1);
+
+                            println!("{:?}, {:?}", v1, v2);
+
+                            v1 = v2cf;
+                            v2 = v1cf;
                             println!("{:?}, {:?}", v1, v2);
 
                             {
@@ -259,6 +270,7 @@ impl MyGame {
             physics,
             prev_pt: Vector2::new(0.0, 0.0),
             mouse_down: false,
+            rad: 0.0
         }
     }
 }
@@ -280,11 +292,12 @@ impl EventHandler for MyGame {
                 y: HEIGHT_LOCAL - self.prev_pt.y,
             };
 
+            println!("{:?}", self.rad);
             let b = graphics::Mesh::new_circle(
                 ctx,
                 DrawMode::fill(),
                 mint::Point2 { x: 0.0, y: 0.0 },
-                10.0,
+                self.rad,
                 1.0,
                 graphics::Color::new(0.0, 0.0, 1.0, 1.0),
             )?;
@@ -307,11 +320,13 @@ impl EventHandler for MyGame {
                 y: HEIGHT_LOCAL - pos.y,
             };
             if is_ball {
+                let shp = coll.shape_handle().as_shape::<Ball<f32>>().unwrap();
+
                 let b = graphics::Mesh::new_circle(
                     ctx,
                     DrawMode::fill(),
                     mint::Point2 { x: 0.0, y: 0.0 },
-                    10.0,
+                    shp.radius(),
                     1.0,
                     graphics::WHITE,
                 )?;
@@ -346,6 +361,10 @@ impl EventHandler for MyGame {
 
     fn mouse_button_down_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
         self.mouse_down = true;
+        let mut rng = rand::thread_rng();
+        let scale: f32 = rng.gen();
+
+        self.rad = 20.0 * scale;
         println!("Mouse button pressed: {:?}, x: {}, y: {}", button, x, y);
         self.prev_pt = na::base::Vector2::new(x, HEIGHT_LOCAL - y);
     }
@@ -356,6 +375,6 @@ impl EventHandler for MyGame {
         let pt = na::base::Vector2::new(x, HEIGHT_LOCAL - y);
         let mut vel = pt - self.prev_pt;
         vel *= 2.0;
-        self.physics.add_ball(self.prev_pt.x, self.prev_pt.y, vel);
+        self.physics.add_ball(self.prev_pt.x, self.prev_pt.y, vel, self.rad);
     }
 }
