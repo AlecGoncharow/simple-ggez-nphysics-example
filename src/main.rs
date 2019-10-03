@@ -358,7 +358,7 @@ impl EventHandler for MyGame {
         let mut rng = rand::thread_rng();
         let scale: f32 = rng.gen();
 
-        self.rad = 20.0 * scale;
+        self.rad = 5.0 + (15.0 * scale);
         println!("Mouse button pressed: {:?}, x: {}, y: {}", button, x, y);
         self.prev_pt = na::base::Vector2::new(x, HEIGHT_LOCAL - y);
     }
