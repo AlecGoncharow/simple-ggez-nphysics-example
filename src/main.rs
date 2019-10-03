@@ -4,7 +4,7 @@ use ggez::mint;
 use ggez::nalgebra as na;
 use ggez::{Context, ContextBuilder, GameResult};
 
-use na::{Isometry2, Point2, Vector2};
+use na::Vector2;
 use nphysics2d::force_generator::DefaultForceGeneratorSet;
 use nphysics2d::joint::DefaultJointConstraintSet;
 use nphysics2d::math::Velocity;
@@ -17,7 +17,6 @@ use nphysics2d::world::{DefaultGeometricalWorld, DefaultMechanicalWorld};
 use ncollide2d::shape::{Ball, Cuboid, ShapeHandle};
 
 use ggez::graphics::DrawMode;
-use ggez::nalgebra::Vector;
 
 const WIDTH_LOCAL: f32 = 800.0;
 const HEIGHT_LOCAL: f32 = 600.0;
@@ -43,6 +42,8 @@ fn main() {
 struct MyGame {
     // hmm
     physics: Physics,
+    prev_pt: Vector2<f32>,
+    mouse_down: bool,
 }
 
 // trusting this: https://github.com/rustsim/nphysics/blob/master/src_testbed/testbed.rs#L114
@@ -56,11 +57,11 @@ struct Physics {
 }
 
 impl Physics {
-    fn add_ball(&mut self, x: f32, y: f32) {
+    fn add_ball(&mut self, x: f32, y: f32, velocity: Vector2<f32>) {
         let rigid_body = RigidBodyDesc::new()
             .translation(Vector2::new(x, y))
-            .mass(1.0)
-            .velocity(Velocity::linear(500.0, 100.0))
+            .mass(0.1)
+            .velocity(Velocity::linear(velocity.x, velocity.y))
             .build();
 
         let rb_handle = self.bodies.insert(rigid_body);
@@ -104,13 +105,13 @@ impl Physics {
 
 impl MyGame {
     pub fn new(_ctx: &mut Context) -> MyGame {
-        let mut mechanical_world = DefaultMechanicalWorld::new(Vector2::new(0.0, 0.0));
-        let mut geometrical_world = DefaultGeometricalWorld::new();
+        let mechanical_world = DefaultMechanicalWorld::new(Vector2::new(0.0, 0.0));
+        let geometrical_world = DefaultGeometricalWorld::new();
 
-        let mut bodies = DefaultBodySet::new();
-        let mut colliders = DefaultColliderSet::new();
-        let mut constraints = DefaultJointConstraintSet::new();
-        let mut forces = DefaultForceGeneratorSet::new();
+        let bodies = DefaultBodySet::new();
+        let colliders = DefaultColliderSet::new();
+        let constraints = DefaultJointConstraintSet::new();
+        let forces = DefaultForceGeneratorSet::new();
 
         let mut physics = Physics {
             mechanical_world,
@@ -126,8 +127,22 @@ impl MyGame {
         physics.add_wall(300.0, 400.0, 50.0, 100.0);
         physics.add_wall(600.0, 100.0, 100.0, 50.0);
         physics.add_wall(100.0, 500.0, 100.0, 50.0);
+
+        // bottom
+        physics.add_wall(WIDTH_LOCAL / 2.0, 10.0, WIDTH_LOCAL, 20.0);
+        // top
+        physics.add_wall(WIDTH_LOCAL / 2.0, HEIGHT_LOCAL - 10.0, WIDTH_LOCAL, 20.0);
+        // left
+        physics.add_wall(10.0, HEIGHT_LOCAL / 2.0, 20.0, HEIGHT_LOCAL);
+        // right
+        physics.add_wall(WIDTH_LOCAL - 10.0, HEIGHT_LOCAL / 2.0, 20.0, HEIGHT_LOCAL);
+
         // Load/create resources here: images, fonts, sounds, etc.
-        MyGame { physics }
+        MyGame {
+            physics,
+            prev_pt: Vector2::new(0.0, 0.0),
+            mouse_down: false,
+        }
     }
 }
 
@@ -141,6 +156,25 @@ impl EventHandler for MyGame {
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         graphics::clear(ctx, graphics::BLACK);
 
+        // draw starting pos of ball if still dragging velocity
+        if self.mouse_down {
+            let vec = mint::Vector2 {
+                x: self.prev_pt.x,
+                y: HEIGHT_LOCAL - self.prev_pt.y,
+            };
+
+            let b = graphics::Mesh::new_circle(
+                ctx,
+                DrawMode::fill(),
+                mint::Point2 { x: 0.0, y: 0.0 },
+                10.0,
+                1.0,
+                graphics::Color::new(0.0, 0.0, 1.0, 1.0),
+            )?;
+            graphics::draw(ctx, &b, (vec,))?;
+        }
+
+        // draw things from nphysics sim
         for (handle, body) in self.physics.bodies.iter() {
             let down = body.downcast_ref::<RigidBody<f32>>().unwrap();
             let pos = down.position().translation.vector;
@@ -171,7 +205,6 @@ impl EventHandler for MyGame {
 
                 let x = vec.x - half_ext.x;
                 let y = vec.y - half_ext.y;
-                println!("{}, {}", x, y);
                 vec.x = x;
                 vec.y = y;
                 use ggez::graphics::Rect;
@@ -195,11 +228,17 @@ impl EventHandler for MyGame {
     }
 
     fn mouse_button_down_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
+        self.mouse_down = true;
         println!("Mouse button pressed: {:?}, x: {}, y: {}", button, x, y);
-        self.physics.add_ball(x, HEIGHT_LOCAL - y)
+        self.prev_pt = na::base::Vector2::new(x, HEIGHT_LOCAL - y);
     }
 
     fn mouse_button_up_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
+        self.mouse_down = false;
         println!("Mouse button released: {:?}, x: {}, y: {}", button, x, y);
+        let pt = na::base::Vector2::new(x, HEIGHT_LOCAL - y);
+        let mut vel = pt - self.prev_pt;
+        vel *= 2.0;
+        self.physics.add_ball(self.prev_pt.x, self.prev_pt.y, vel);
     }
 }
