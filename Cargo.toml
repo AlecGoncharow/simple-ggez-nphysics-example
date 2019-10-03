@@ -1,0 +1,14 @@
+[package]
+name = "balls_and_walls"
+version = "0.1.0"
+authors = ["Alec Goncharow <Alec.Goncharow@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ggez = "0.5.1"
+rand = "*"
+nphysics2d = "*"
+nphysics3d = "*"
+ncollide2d = "*"
