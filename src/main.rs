@@ -61,9 +61,9 @@ impl Physics {
     fn add_ball(&mut self, x: f32, y: f32, velocity: Vector2<f32>) {
         let rigid_body = RigidBodyDesc::new()
             .translation(Vector2::new(x, y))
-            .mass(1.2)
-            .angular_inertia(0.1)
-            .angular_damping(5.0)
+            .mass(10.0)
+            //.angular_inertia(0.1)
+            //.angular_damping(5.0)
             .velocity(Velocity::linear(velocity.x, velocity.y))
             .build();
 
@@ -73,7 +73,7 @@ impl Physics {
 
         let collider = ColliderDesc::new(shape)
             .ccd_enabled(false)
-            .density(1.0)
+            .density(5.0)
             .build(BodyPartHandle(rb_handle, 0));
 
         let _collider_handle = self.colliders.insert(collider);
@@ -117,33 +117,90 @@ impl Physics {
                     {
                         let deep = manifold.deepest_contact().unwrap();
                         let normal: Unit<Vector2<f32>> = deep.contact.normal;
+                        if collider1.shape_handle().is::<Cuboid<f32>>() || collider2.shape_handle().is::<Cuboid<f32>>() {
+                            // totally sane, totally normal
+                            {
+                                let body1 = self
+                                    .bodies
+                                    .get_mut(collider1.body())
+                                    .unwrap()
+                                    .downcast_mut::<RigidBody<f32>>()
+                                    .unwrap();
 
-                        // totally sane, totally normal
-                        {
+                                let vel1 = body1.velocity().linear.clone();
+                                let new_v1 = vel1 - (2.0 * vel1.dot(&normal) * normal.into_inner());
+                                body1.set_velocity(Velocity::linear(new_v1.x, new_v1.y));
+                            }
+
+                            // round 2
+                            {
+                                let body2 = self
+                                    .bodies
+                                    .get_mut(collider2.body())
+                                    .unwrap()
+                                    .downcast_mut::<RigidBody<f32>>()
+                                    .unwrap();
+
+                                let vel2 = body2.velocity().linear.clone();
+                                let new_v2 = vel2 - (2.0 * vel2.dot(&normal) * normal.into_inner());
+                                body2.set_velocity(Velocity::linear(new_v2.x, new_v2.y))
+                            }
+                        } else {
+                            // adapted from https://stackoverflow.com/a/345863/11015039
                             let body1 = self
                                 .bodies
-                                .get_mut(collider1.body())
+                                .get(collider1.body())
                                 .unwrap()
-                                .downcast_mut::<RigidBody<f32>>()
+                                .downcast_ref::<RigidBody<f32>>()
                                 .unwrap();
 
-                            let vel1 = body1.velocity().linear.clone();
-                            let new_v1 = vel1 - (2.0 * vel1.dot(&normal) * normal.into_inner());
-                            body1.set_velocity(Velocity::linear(new_v1.x, new_v1.y));
-                        }
-
-                        // round 2
-                        {
                             let body2 = self
                                 .bodies
-                                .get_mut(collider2.body())
+                                .get(collider2.body())
                                 .unwrap()
-                                .downcast_mut::<RigidBody<f32>>()
+                                .downcast_ref::<RigidBody<f32>>()
                                 .unwrap();
 
-                            let vel2 = body2.velocity().linear.clone();
-                            let new_v2 = vel2 - (2.0 * vel2.dot(&normal) * normal.into_inner());
-                            body2.set_velocity(Velocity::linear(new_v2.x, new_v2.y))
+                            let mut v1 = body1.velocity().linear.clone();
+                            let mut v2 = body2.velocity().linear.clone();
+                            let pos1 = body1.position().translation.vector;
+                            let pos2 = body2.position().translation.vector;
+
+                            let mut collision = pos1 - pos2;
+                            let distance = collision.magnitude();
+
+                            let collision = collision/distance;
+
+                            let v1ci = v1.dot(&collision);
+                            let v2ci = v2.dot(&collision);
+
+                            let v1cf = v2ci;
+                            let v2cf = v1ci;
+
+                            v1 += (v1cf - v1ci) * collision;
+                            v2 += (v2cf - v2ci) * collision;
+                            println!("{:?}, {:?}", v1, v2);
+
+                            {
+                               let body1 = self
+                                    .bodies
+                                    .get_mut(collider1.body())
+                                    .unwrap()
+                                    .downcast_mut::<RigidBody<f32>>()
+                                    .unwrap();
+                                body1.set_velocity(Velocity::linear(v1.x, v1.y));
+
+                            }
+
+                            {
+                               let body2 = self
+                                    .bodies
+                                    .get_mut(collider2.body())
+                                    .unwrap()
+                                    .downcast_mut::<RigidBody<f32>>()
+                                    .unwrap();
+                                body2.set_velocity(Velocity::linear(v2.x, v2.y))
+                            }
                         }
                     }
                 }
