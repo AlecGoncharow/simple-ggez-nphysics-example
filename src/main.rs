@@ -163,7 +163,7 @@ impl Physics {
 
 impl MyGame {
     pub fn new(_ctx: &mut Context) -> MyGame {
-        let mechanical_world = DefaultMechanicalWorld::new(Vector2::new(0.0, -10.0));
+        let mechanical_world = DefaultMechanicalWorld::new(Vector2::new(0.0, 0.0));
         let geometrical_world = DefaultGeometricalWorld::new();
 
         let bodies = DefaultBodySet::new();
