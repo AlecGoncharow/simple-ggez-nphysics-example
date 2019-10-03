@@ -177,22 +177,16 @@ impl Physics {
                             let mut collision = pos1 - pos2;
                             let distance = collision.magnitude();
 
-                            let collision = collision / distance;
+                            collision = collision / distance;
 
                             let v1ci = v1.dot(&collision);
                             let v2ci = v2.dot(&collision);
 
-                            //let v1cf = v2ci;
-                            //let v2cf = v1ci;
+                            let v1cf = (v1ci * (mass1 - mass2) + (2.0 * mass2 * v2ci))/(mass1 + mass2);
+                            let v2cf = (v2ci * (mass2 - mass1) + (2.0 * mass2 * v1ci))/(mass1 + mass2);
 
-
-                            let v1cf = v1 - (2.0*mass2)/(mass1 + mass2) * ((v1 - v2).dot(&(pos1 - pos2))/(pos1 - pos2).magnitude().powf(2.0)) *(pos1 - pos2);
-                            let v2cf = v2 - (2.0*mass1)/(mass1 + mass2) * ((v2 - v1).dot(&(pos2 - pos1))/(pos2 - pos1).magnitude().powf(2.0)) *(pos2 - pos1);
-
-                            println!("{:?}, {:?}", v1, v2);
-
-                            v1 = v2cf;
-                            v2 = v1cf;
+                            v1 += (v1cf - v1ci) * collision;
+                            v2 += (v2cf - v2ci) * collision;
                             println!("{:?}, {:?}", v1, v2);
 
                             {
